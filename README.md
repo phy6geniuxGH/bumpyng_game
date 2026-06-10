@@ -1,8 +1,8 @@
-# Stable Particle Collision Simulation
+# Bumpyng Game (under development)
 
 ## Overview
 
-2D elastic particle collision simulation built with Python and CustomTkinter. One larger special particle and 499 smaller blue particles move with random velocities, bounce off window boundaries, and collide with each other. The special particle leaves a motion trail and shifts color based on speed.
+Bumpyng Game is a 2D elastic particle collision simulation built with Python and CustomTkinter. One larger special particle and 499 smaller blue particles move with random velocities, bounce off window boundaries, and collide with each other. The special particle leaves a motion trail and shifts color based on speed.
 
 ## Features
 
