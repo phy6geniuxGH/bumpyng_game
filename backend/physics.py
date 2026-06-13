@@ -12,6 +12,7 @@ class Particle:
         self.vx = random.uniform(-RANDOM_VELOCITY_RANGE, RANDOM_VELOCITY_RANGE)
         self.vy = random.uniform(-RANDOM_VELOCITY_RANGE, RANDOM_VELOCITY_RANGE)
         self.path = []
+        self.trail_color = "#6464ff"
     
     def move(self, width, height):
         self.x += self.vx

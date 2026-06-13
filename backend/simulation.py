@@ -2,7 +2,8 @@ import random
 from backend.physics import Particle, resolve_collision
 from backend.config import (
     WIDTH, HEIGHT, PARTICLE_COUNT,
-    WHITE_RADIUS, BLUE_RADIUS, BLUE_COLOR
+    WHITE_RADIUS, BLUE_RADIUS, BLUE_COLOR, 
+    RED_RADIUS, RED_COLOR, RED_TRAIL_COLOR
 )
 
 class Simulation:
@@ -22,6 +23,10 @@ class Simulation:
                 BLUE_COLOR
             )
             self.particles.append(p)
+        red_p = Particle(WIDTH // 4, HEIGHT // 4, RED_RADIUS, RED_COLOR, is_special=True)
+        red_p.trail_color = RED_TRAIL_COLOR
+        self.particles.append(red_p)
+
 
     def tick(self):
         for i, p1 in enumerate(self.particles):

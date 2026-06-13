@@ -40,7 +40,7 @@ class App(ctk.CTk):
         for p in self.sim.particles:
             if p.is_special and len(p.path) > 2:
                 flat = [coord for point in p.path for coord in point]
-                self.canvas.create_line(flat, fill=TRAIL_COLOR, width=2)
+                self.canvas.create_line(flat, fill=p.trail_color, width=2)
             x0, y0 = p.x - p.radius, p.y - p.radius
             x1, y1 = p.x + p.radius, p.y + p.radius
             self.canvas.create_oval(x0, y0, x1, y1, fill=p.color, outline="")
