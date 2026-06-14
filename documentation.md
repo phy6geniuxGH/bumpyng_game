@@ -13,8 +13,10 @@ The current simulation includes:
 - spatial-grid collision candidate lookup
 - faded trails and glow effects for special particles
 - click-to-spawn blue particles
+- right-click repulsion for nearby particles
 - pause/resume with the spacebar
 - slider-controlled blue-particle count
+- HUD with blue count, smoothed FPS, and paused state
 
 ## Runtime Entry Point
 
@@ -69,13 +71,18 @@ This module centralizes simulation constants.
 | `TRAIL_COLOR` | `"#6464ff"` | Default special-particle trail color |
 | `RED_COLOR` | `"#ff4040"` | Red special-particle initial color |
 | `RED_TRAIL_COLOR` | `"#ff9900"` | Red special-particle trail color |
-| `TRAIL_FADE` | `True` | Intended trail-fade flag; not currently branched on |
+| `TRAIL_FADE` | `True` | Toggles faded/tapered trails versus fixed-color trails |
 | `GLOW_RINGS` | `4` | Number of glow rings |
 | `GLOW_SPREAD` | `0.6` | Glow-radius multiplier |
 | `GLOW_ENABLED` | `True` | Enables special-particle glow rendering |
 | `EASE` | `0.15` | Color interpolation factor |
 | `SPECIALS` | list of dicts | Special-particle fractional positions and visuals |
-| `CELL_SIZE` | `WHITE_RADIUS + RED_RADIUS` | Spatial-grid cell size |
+| `_MAX_RADIUS` | computed | Largest radius among blue and special particles |
+| `CELL_SIZE` | `2 * _MAX_RADIUS` | Spatial-grid cell size |
+| `REPEL_RADIUS` | `120` | Radius affected by right-click repulsion |
+| `REPEL_STRENGTH` | `8.0` | Maximum velocity kick near the repulsion center |
+| `HUD_COLOR` | `"#48bcfa"` | HUD text color |
+| `HUD_FONT` | `("Consolas", 14, "bold")` | HUD text font |
 
 ### `SPECIALS`
 
@@ -173,7 +180,6 @@ Creates one particle.
 | `color` | Current hex color |
 | `is_special` | Whether the particle uses trail, glow, and speed-color behavior |
 | `vx`, `vy` | Velocity components |
-| `rx`, `ry` | Render-easing positions; currently not used by the renderer |
 | `path` | Stored trail points for special particles |
 | `trail_color` | Trail color used by the renderer |
 | `pulse_phase` | Phase value for glow animation |
@@ -196,17 +202,6 @@ Step-by-step:
    - map speed to a target orange-red color
    - blend current color toward `target_color`
    - increment `pulse_phase`
-
-### `ease_render(factor)`
-
-Updates `rx` and `ry` toward `x` and `y`.
-
-Current status:
-
-- implemented
-- not currently called by the GUI renderer
-
-This could be used later to smooth visual motion separately from physics motion.
 
 ## `resolve_collision(p1, p2)`
 
@@ -355,6 +350,33 @@ Used by:
 - `App._on_click()`
 - left mouse clicks on the canvas
 
+### `repel(x, y, radius=REPEL_RADIUS, strength=REPEL_STRENGTH)`
+
+Applies an outward velocity kick to particles inside a circular area.
+
+Step-by-step:
+
+1. Compute squared distance from the click point to each particle.
+2. Skip particles outside `radius`.
+3. Skip particles exactly at the click center to avoid division by zero.
+4. Compute linear falloff:
+
+```python
+falloff = 1 - d / radius
+```
+
+5. Add an outward velocity kick:
+
+```python
+p.vx += (dx / d) * kick
+p.vy += (dy / d) * kick
+```
+
+Used by:
+
+- `App._on_repel()`
+- right-click, middle-click, and Control-click bindings
+
 ### `reset()`
 
 Calls `_setup()` to restore the initial configured simulation state.
@@ -380,6 +402,8 @@ ctk.CTk
 | `sim` | `Simulation` instance |
 | `_running` | Main-loop control flag |
 | `_paused` | Pause/resume state |
+| `_fps` | Smoothed frames-per-second estimate |
+| `_last_t` | Previous frame timestamp from `time.perf_counter()` |
 | `canvas` | Tk drawing surface |
 
 ### `__init__()`
@@ -395,7 +419,9 @@ Step-by-step:
 5. build UI
 6. initialize pause state
 7. bind spacebar to `_toggle_pause()`
-8. start `_loop()`
+8. bind right-click variants to `_on_repel()`
+9. initialize FPS tracking
+10. start `_loop()`
 
 ### `_build_ui()`
 
@@ -426,6 +452,7 @@ If `_paused` is false:
 Then it:
 
 - calls `_render()`
+- updates smoothed FPS using `time.perf_counter()`
 - schedules itself again with `self.after(FRAME_DELAY_MS, self._loop)`
 
 ### `_render()`
@@ -437,18 +464,20 @@ For every particle:
 1. Draw glow rings for special particles when `GLOW_ENABLED` is true.
 2. Draw special-particle trail segments.
 3. Draw the particle core as an oval.
-4. Draw the blue-particle counter text.
+4. Draw the HUD text.
 
 Rendering details:
 
 - glow uses `pulse_phase`
-- trail colors are blended from `BG_COLOR` to `p.trail_color`
-- trail width tapers from thin older segments to thicker newer segments
+- when `TRAIL_FADE` is true, trail colors are blended from `BG_COLOR` to `p.trail_color`
+- when `TRAIL_FADE` is true, trail width tapers from thin older segments to thicker newer segments
+- when `TRAIL_FADE` is false, trails use fixed color and width
 - particle bodies are drawn with `create_oval()`
+- HUD includes blue-particle count, smoothed FPS, and `[PAUSED]` when paused
 
 Current implementation note:
 
-- the blue-count overlay is inside the particle loop, so it is drawn repeatedly once per particle per frame
+- the HUD overlay is inside the particle loop, so it is drawn repeatedly once per particle per frame
 - behavior is visually acceptable but inefficient
 
 ### `_reset()`
@@ -489,6 +518,20 @@ Converts slider value to an integer and calls:
 self.sim.set_blue_count(int(value))
 ```
 
+### `_on_repel(event)`
+
+Calls:
+
+```python
+self.sim.repel(event.x, event.y)
+```
+
+Bound to:
+
+- `<Button-2>`
+- `<Button-3>`
+- `<Control-Button-1>`
+
 ## How Components Work Together
 
 High-level flow:
@@ -524,6 +567,11 @@ Mouse click
   -> Simulation.spawn()
   -> new blue particle appears
 
+Right-click / middle-click / Control-click
+  -> App._on_repel()
+  -> Simulation.repel()
+  -> nearby particles receive outward velocity kicks
+
 Slider movement
   -> App._on_count()
   -> Simulation.set_blue_count()
@@ -541,9 +589,8 @@ Reset button
 
 ## Known Implementation Notes
 
-- `TRAIL_FADE` exists in config but is not currently used to branch rendering behavior.
-- `Particle.rx`, `Particle.ry`, and `ease_render()` exist but are not currently used by the GUI.
+- `TRAIL_FADE` is now wired into trail rendering.
 - `TRAIL_COLOR` and `EASE` are imported in `frontend/gui/app.py` but not used directly there.
-- `CELL_SIZE` should be revisited if particle radii or special-particle definitions change substantially.
-- The blue-count overlay should ideally be drawn once after the particle loop.
-
+- `TRAIL_COLOR` and `EASE` are imported in `backend/simulation.py` but not used directly there.
+- `CELL_SIZE` is computed from the largest configured radius, but should still be validated if speeds or collision behavior change substantially.
+- The HUD overlay should ideally be drawn once after the particle loop.

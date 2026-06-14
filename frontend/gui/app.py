@@ -1,8 +1,11 @@
 import math
+import time
 import tkinter as tk
 import customtkinter as ctk
 from backend.simulation import Simulation
-from backend.config import WIDTH, HEIGHT, BG_COLOR, TRAIL_COLOR, FRAME_DELAY_MS, GLOW_RINGS, GLOW_SPREAD, EASE, GLOW_ENABLED
+from backend.config import (WIDTH, HEIGHT, BG_COLOR, 
+                            TRAIL_COLOR, FRAME_DELAY_MS, GLOW_RINGS, GLOW_SPREAD, 
+                            GLOW_ENABLED, EASE, TRAIL_FADE, HUD_COLOR, HUD_FONT)
 from backend.colors import blend
 
 
@@ -18,6 +21,11 @@ class App(ctk.CTk):
         self._build_ui()
         self._paused = False
         self.bind("<space>", self._toggle_pause)
+        self.canvas.bind("<Button-2>", self._on_repel)   # mac right-click
+        self.canvas.bind("<Button-3>", self._on_repel)   # linux/win right-click
+        self.canvas.bind("<Control-Button-1>", self._on_repel)  # mac trackpad fallback
+        self._fps = 0.0
+        self._last_t = time.perf_counter()
         self._loop()
 
     def _build_ui(self):
@@ -46,6 +54,12 @@ class App(ctk.CTk):
         if not self._paused:
             self.sim.tick()
         self._render()
+        now = time.perf_counter()
+        dt = now - self._last_t
+        self._last_t = now
+        if dt > 0:
+            self._fps += (1.0/dt - self._fps) * 0.1   # smoothed
+
         self.after(FRAME_DELAY_MS, self._loop)
 
     def _render(self):
@@ -64,24 +78,29 @@ class App(ctk.CTk):
             if p.is_special and len(p.path) > 2:
                 n = len(p.path)
                 for i in range(1, n):
-                    t = i / n                                   # newest -> t~1
-                    faded = blend(BG_COLOR, p.trail_color, t)   # old=bg, new=full color
                     x0, y0 = p.path[i-1]
                     x1, y1 = p.path[i]
-                    w = max(1, int(t * 3))                       # taper: thin tail, thick head
-                    self.canvas.create_line(x0, y0, x1, y1, fill=faded, width=w)
-                # existing core oval (lines 44-46) draws AFTER -> on top
+                    if TRAIL_FADE:
+                        t = i / n
+                        color = blend(BG_COLOR, p.trail_color, t)
+                        w = max(1, int(t * 3))
+                    else:
+                        color = p.trail_color
+                        w = 2
+                    self.canvas.create_line(x0, y0, x1, y1, fill=color, width=w)
+
             x0, y0 = p.x - p.radius, p.y - p.radius
             x1, y1 = p.x + p.radius, p.y + p.radius
             self.canvas.create_oval(x0, y0, x1, y1, fill=p.color, outline="")
 
             blue_count = sum(1 for p in self.sim.particles if not p.is_special)
+            hud = f"Blue: {blue_count}   FPS: {self._fps:.0f}"
+            if self._paused:
+                hud += "   [PAUSED]"
             self.canvas.create_text(
-            WIDTH - 10, 10,
-            text=f"Blue: {blue_count}",
-            fill="#48bcfa", anchor="ne",       # ne = top-right corner
-            font=("Consolas", 14, "bold")
-        )
+                WIDTH - 10, 10, text=hud,
+                fill=HUD_COLOR, anchor="ne", font=HUD_FONT
+            )
 
     def _reset(self):
         self.sim.reset()
@@ -99,5 +118,6 @@ class App(ctk.CTk):
     def _on_count(self, value):
         self.sim.set_blue_count(int(value))
 
-
+    def _on_repel(self, event):
+        self.sim.repel(event.x, event.y)
 

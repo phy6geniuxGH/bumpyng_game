@@ -1,10 +1,11 @@
+import math
 import random
 from backend.physics import Particle, resolve_collision
 from backend.config import (
     WIDTH, HEIGHT, BLUE_PARTICLE_COUNT,
     BLUE_RADIUS, BLUE_COLOR, 
-    SPECIALS, TRAIL_COLOR,
-    CELL_SIZE
+    SPECIALS, TRAIL_COLOR, EASE,
+    CELL_SIZE, REPEL_RADIUS, REPEL_STRENGTH,
 )
 
 class Simulation:
@@ -69,6 +70,21 @@ class Simulation:
 
     def spawn(self, x, y):
         self.particles.append(Particle(x, y, BLUE_RADIUS, BLUE_COLOR))
+
+    def repel(self, x, y, radius=REPEL_RADIUS, strength=REPEL_STRENGTH):
+        r2 = radius * radius
+        for p in self.particles:
+            dx = p.x - x
+            dy = p.y - y
+            d2 = dx*dx + dy*dy
+            if d2 > r2 or d2 == 0:
+                continue
+            d = math.sqrt(d2)
+            falloff = 1 - d / radius          # 1 at center -> 0 at edge
+            kick = strength * falloff
+            p.vx += (dx / d) * kick
+            p.vy += (dy / d) * kick
+
 
     def reset(self):
         self._setup()

@@ -1,9 +1,7 @@
 import random
 import math
-from backend.config import RANDOM_VELOCITY_RANGE, TRAIL_LENGTH
+from backend.config import RANDOM_VELOCITY_RANGE, TRAIL_LENGTH, EASE
 from backend.colors import blend
-from backend.config import EASE
-
 
 class Particle:
     def __init__(self, x, y, radius, color, is_special=False):
@@ -14,8 +12,6 @@ class Particle:
         self.is_special= is_special
         self.vx = random.uniform(-RANDOM_VELOCITY_RANGE, RANDOM_VELOCITY_RANGE)
         self.vy = random.uniform(-RANDOM_VELOCITY_RANGE, RANDOM_VELOCITY_RANGE)
-        self.rx = self.x      # rendered (eased) position
-        self.ry = self.y
         self.path = []
         self.trail_color = "#6464ff"
         self.pulse_phase = random.uniform(0, math.tau)   # math already imported
@@ -56,12 +52,6 @@ class Particle:
 
         if self.is_special:
             self.pulse_phase += 0.1
-
-
-    def ease_render(self, factor):
-        self.rx += (self.x - self.rx) * factor
-        self.ry += (self.y - self.ry) * factor
-
 
 def resolve_collision(p1, p2):
     dx = p1.x - p2.x

@@ -27,4 +27,15 @@ SPECIALS = [
     {"x": 0.25, "y": 0.25, "radius": RED_RADIUS,   "color": RED_COLOR,  "trail": RED_TRAIL_COLOR},
 ]
 
-CELL_SIZE = SPECIALS[0]['radius']+SPECIALS[1]['radius']   # >= max(r1+r2). 15+12=27, round up.
+# grid cell must be >= largest possible collision distance = sum of the two
+# biggest radii in play. 2 * max radius is a safe upper bound for any pair.
+_MAX_RADIUS = max([BLUE_RADIUS] + [s["radius"] for s in SPECIALS])
+CELL_SIZE = 2 * _MAX_RADIUS
+
+# --- interaction ---
+REPEL_RADIUS = 120     # right-click push reaches this far (px)
+REPEL_STRENGTH = 8.0   # velocity kick at click center, falls off with distance
+
+# --- HUD ---
+HUD_COLOR = "#48bcfa"
+HUD_FONT = ("Consolas", 14, "bold")

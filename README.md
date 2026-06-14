@@ -15,9 +15,10 @@ The special particles leave faded motion trails and shift color smoothly based o
 - Pulsing glow effect for special particles
 - Spatial-grid collision candidate search
 - Click-to-spawn blue particles
+- Right-click repulsion force for nearby particles
 - Spacebar pause/resume
 - Slider to adjust blue-particle count
-- On-canvas blue-particle counter
+- On-canvas HUD with blue count, FPS, and paused state
 - Real-time animation at ~60 FPS
 - Reset button to reinitialize simulation
 
@@ -44,9 +45,9 @@ particle_collisions/
 ├── main.py                      ← entry point
 ├── backend/
 │   ├── colors.py                <- hex color conversion and blending helpers
-│   ├── config.py                <- simulation constants, special-particle setup, effects, grid size
+│   ├── config.py                <- simulation constants, specials, effects, grid, interaction, HUD
 │   ├── physics.py               <- Particle class, resolve_collision
-│   └── simulation.py            <- Simulation class, spatial grid, spawn/count/reset logic
+│   └── simulation.py            <- Simulation class, spatial grid, spawn/repel/count/reset logic
 └── frontend/
     ├── assets/
     └── gui/
@@ -73,13 +74,18 @@ All constants live in `backend/config.py`:
 | `TRAIL_COLOR` | `"#6464ff"` | Default special-particle trail color |
 | `RED_COLOR` | `"#ff4040"` | Initial red special-particle color |
 | `RED_TRAIL_COLOR` | `"#ff9900"` | Red special-particle trail color |
-| `TRAIL_FADE` | `True` | Intended trail-fade setting; current renderer always fades trails |
+| `TRAIL_FADE` | `True` | Toggles faded/tapered trails versus fixed-color trails |
 | `GLOW_ENABLED` | `True` | Enables/disables special-particle glow rendering |
 | `GLOW_RINGS` | `4` | Number of glow rings when glow is enabled |
 | `GLOW_SPREAD` | `0.6` | Glow ring radius multiplier |
 | `EASE` | `0.15` | Color-blending factor for special-particle color transitions |
 | `SPECIALS` | list of 2 dicts | Fractional-position configuration for special particles |
-| `CELL_SIZE` | `WHITE_RADIUS + RED_RADIUS` | Spatial-grid cell size used for collision candidate lookup |
+| `_MAX_RADIUS` | computed | Largest radius among blue and special particles |
+| `CELL_SIZE` | `2 * _MAX_RADIUS` | Spatial-grid cell size used for collision candidate lookup |
+| `REPEL_RADIUS` | `120` | Right-click repulsion radius in pixels |
+| `REPEL_STRENGTH` | `8.0` | Maximum velocity kick near the repulsion center |
+| `HUD_COLOR` | `"#48bcfa"` | HUD text color |
+| `HUD_FONT` | `("Consolas", 14, "bold")` | HUD text font |
 
 Current initial total particle count is 502:
 
@@ -102,12 +108,10 @@ Stores particle state:
 - special-particle flag: `is_special`
 - path history for trails
 - trail color
-- pulse phase for optional glow animation
+- pulse phase for glow animation
 - target color for smooth color interpolation
 
 The `move(width, height)` method updates position, handles wall bouncing, records the trail for special particles, updates the special-particle target color based on speed, and blends the current color toward that target.
-
-The class also includes `rx`, `ry`, and `ease_render(factor)` for eased render positions. These are currently available but not used by the canvas renderer.
 
 ### `backend.colors`
 
@@ -137,6 +141,7 @@ The simulation also provides:
 - `_build_grid()` for spatial-grid collision candidates
 - `set_blue_count(target)` for slider-controlled blue-particle count
 - `spawn(x, y)` for click-created blue particles
+- `repel(x, y)` for right-click velocity kicks
 - `reset()` for reinitializing all particles
 
 ### `frontend.gui.app.App`
@@ -148,8 +153,9 @@ Controls:
 - `Reset` button: reinitializes the simulation
 - Spacebar: toggles pause/resume
 - Mouse click on canvas: spawns one blue particle
+- Right-click / middle-click / Control-click: repels nearby particles
 - Slider: changes the target number of blue particles from 0 to 2000
-- Top-right overlay: displays the current blue-particle count
+- Top-right HUD: displays blue count, smoothed FPS, and `[PAUSED]` state
 
 ## Physics Model
 
@@ -172,7 +178,7 @@ This keeps the collision logic simple while avoiding full all-pairs checks in ty
 
 ## Rendering Notes
 
-The renderer currently draws special-particle trails segment-by-segment. Older trail segments are blended closer to the background color, while newer segments are brighter and slightly thicker.
+The renderer draws special-particle trails segment-by-segment. When `TRAIL_FADE = True`, older trail segments are blended closer to the background color while newer segments are brighter and slightly thicker. When `TRAIL_FADE = False`, trails use a fixed color and width.
 
 Glow rendering is enabled by default:
 
@@ -184,9 +190,7 @@ Set it to `False` in `backend/config.py` to disable pulsing glow rings around sp
 
 ## Possible Improvements
 
-- Tune or validate `CELL_SIZE` for larger particle-radius combinations
-- FPS and particle count display
+- Tune or validate `CELL_SIZE` if collision tunneling appears at higher speeds or larger radii
 - Deterministic seeding for reproducible runs
-- Wire `TRAIL_FADE` into the renderer so faded trails can be toggled
-- Use `Particle.rx` and `Particle.ry` if eased rendering is desired
-- Avoid drawing the blue-count overlay once per particle; draw it once after the particle loop
+- Avoid drawing the HUD once per particle; draw it once after the particle loop
+- Remove unused imports from `frontend/gui/app.py` and `backend/simulation.py`
