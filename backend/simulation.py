@@ -1,7 +1,7 @@
 import random
 from backend.physics import Particle, resolve_collision
 from backend.config import (
-    WIDTH, HEIGHT, PARTICLE_COUNT,
+    WIDTH, HEIGHT, BLUE_PARTICLE_COUNT,
     WHITE_RADIUS, BLUE_RADIUS, BLUE_COLOR, 
     RED_RADIUS, RED_COLOR, RED_TRAIL_COLOR
 )
@@ -15,7 +15,7 @@ class Simulation:
         self.particles.clear()
         special = Particle(WIDTH // 2, HEIGHT // 2, WHITE_RADIUS, "#ffffff", is_special=True)
         self.particles.append(special)
-        for _ in range(PARTICLE_COUNT - 1):
+        for _ in range(BLUE_PARTICLE_COUNT - 1):
             p = Particle(
                 random.randint(50, WIDTH - 50),
                 random.randint(50, HEIGHT - 50),
