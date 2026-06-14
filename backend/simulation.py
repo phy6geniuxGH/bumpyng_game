@@ -2,8 +2,9 @@ import random
 from backend.physics import Particle, resolve_collision
 from backend.config import (
     WIDTH, HEIGHT, BLUE_PARTICLE_COUNT,
-    WHITE_RADIUS, BLUE_RADIUS, BLUE_COLOR, 
-    RED_RADIUS, RED_COLOR, RED_TRAIL_COLOR
+    BLUE_RADIUS, BLUE_COLOR, 
+    SPECIALS, TRAIL_COLOR,
+    CELL_SIZE
 )
 
 class Simulation:
@@ -13,26 +14,61 @@ class Simulation:
 
     def _setup(self):
         self.particles.clear()
-        special = Particle(WIDTH // 2, HEIGHT // 2, WHITE_RADIUS, "#ffffff", is_special=True)
-        self.particles.append(special)
-        for _ in range(BLUE_PARTICLE_COUNT - 1):
-            p = Particle(
-                random.randint(50, WIDTH - 50),
-                random.randint(50, HEIGHT - 50),
-                BLUE_RADIUS,
-                BLUE_COLOR
-            )
+        for s in SPECIALS:
+            p = Particle(int(WIDTH * s["x"]), int(HEIGHT * s["y"]),
+                         s["radius"], s["color"], is_special=True)
+            p.trail_color = s["trail"]
             self.particles.append(p)
-        red_p = Particle(WIDTH // 4, HEIGHT // 4, RED_RADIUS, RED_COLOR, is_special=True)
-        red_p.trail_color = RED_TRAIL_COLOR
-        self.particles.append(red_p)
-
+        for _ in range(BLUE_PARTICLE_COUNT):
+            self.particles.append(self._make_blue())
+    
+    def _make_blue(self):
+        return Particle(
+            random.randint(50, WIDTH - 50),
+            random.randint(50, HEIGHT - 50),
+            BLUE_RADIUS, BLUE_COLOR
+        )
+    
+    def _build_grid(self):
+        grid = {}
+        for p in self.particles:
+            key = (int(p.x // CELL_SIZE), int(p.y // CELL_SIZE))
+            grid.setdefault(key, []).append(p)
+        return grid
 
     def tick(self):
-        for i, p1 in enumerate(self.particles):
-            p1.move(WIDTH, HEIGHT)
-            for j in range(i + 1, len(self.particles)):
-                resolve_collision(p1, self.particles[j])
+        for p in self.particles:
+            p.move(WIDTH, HEIGHT)            # move ALL first, then collide
+
+        grid = self._build_grid()
+        checked = set()                       # avoid resolving a pair twice
+        for (cx, cy), cell in grid.items():
+            candidates = []
+            for dx in (-1, 0, 1):             # this cell + 8 neighbors
+                for dy in (-1, 0, 1):
+                    candidates.extend(grid.get((cx + dx, cy + dy), []))
+            for p1 in cell:
+                for p2 in candidates:
+                    if p1 is p2:
+                        continue
+                    key = (id(p1), id(p2)) if id(p1) < id(p2) else (id(p2), id(p1))
+                    if key in checked:
+                        continue
+                    checked.add(key)
+                    resolve_collision(p1, p2)
     
+    def set_blue_count(self, target):
+        blues = [p for p in self.particles if not p.is_special]
+        diff = target - len(blues)
+        if diff > 0:
+            for _ in range(diff):
+                self.particles.append(self._make_blue())
+        elif diff < 0:
+            for p in blues[diff:]:            # trim from the end
+                self.particles.remove(p)
+
+    def spawn(self, x, y):
+        self.particles.append(Particle(x, y, BLUE_RADIUS, BLUE_COLOR))
+
     def reset(self):
         self._setup()

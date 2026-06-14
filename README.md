@@ -2,7 +2,7 @@
 
 ## Overview
 
-Bumpyng Game is a 2D elastic particle collision simulation built with Python and CustomTkinter. It currently simulates one white special particle, one red special particle, and 499 small blue particles. All particles move with random velocities, bounce off window boundaries, and collide with each other.
+Bumpyng Game is a 2D elastic particle collision simulation built with Python and CustomTkinter. It currently simulates two configurable special particles and 500 blue particles. All particles move with random velocities, bounce off window boundaries, and collide with each other.
 
 The special particles leave faded motion trails and shift color smoothly based on speed.
 
@@ -12,7 +12,12 @@ The special particles leave faded motion trails and shift color smoothly based o
 - Pairwise elastic collision resolution
 - White and red special particles with faded motion trails
 - Smooth speed-dependent special-particle color shift toward orange-red
-- Optional pulsing glow effect for special particles
+- Pulsing glow effect for special particles
+- Spatial-grid collision candidate search
+- Click-to-spawn blue particles
+- Spacebar pause/resume
+- Slider to adjust blue-particle count
+- On-canvas blue-particle counter
 - Real-time animation at ~60 FPS
 - Reset button to reinitialize simulation
 
@@ -39,9 +44,9 @@ particle_collisions/
 ├── main.py                      ← entry point
 ├── backend/
 │   ├── colors.py                <- hex color conversion and blending helpers
-│   ├── config.py                <- simulation constants and visual effect settings
+│   ├── config.py                <- simulation constants, special-particle setup, effects, grid size
 │   ├── physics.py               <- Particle class, resolve_collision
-│   └── simulation.py            <- Simulation class, particle setup, tick loop
+│   └── simulation.py            <- Simulation class, spatial grid, spawn/count/reset logic
 └── frontend/
     ├── assets/
     └── gui/
@@ -56,29 +61,33 @@ All constants live in `backend/config.py`:
 | --- | --- | --- |
 | `WIDTH` | `800` | Window width in pixels |
 | `HEIGHT` | `600` | Window height in pixels |
-| `BLUE_PARTICLE_COUNT` | `500` | White-plus-blue setup count before appending the red special particle |
-| `WHITE_RADIUS` | `15` | Radius of the white special particle |
+| `BLUE_PARTICLE_COUNT` | `500` | Initial number of regular blue particles |
+| `WHITE_RADIUS` | `20` | Radius of the white special particle |
 | `RED_RADIUS` | `12` | Radius of the red special particle |
-| `BLUE_RADIUS` | `7` | Radius of regular blue particles |
+| `BLUE_RADIUS` | `5` | Radius of regular blue particles |
 | `RANDOM_VELOCITY_RANGE` | `10` | Max starting velocity component |
 | `TRAIL_LENGTH` | `200` | Max path points stored for trail |
 | `FRAME_DELAY_MS` | `16` | Milliseconds between frames (~60 FPS) |
 | `BG_COLOR` | `"#0a0a19"` | Canvas background color |
-| `BLUE_COLOR` | `"#48bcfa"` | Regular particle color |
+| `BLUE_COLOR` | `"#024265"` | Regular particle color |
 | `TRAIL_COLOR` | `"#6464ff"` | Default special-particle trail color |
 | `RED_COLOR` | `"#ff4040"` | Initial red special-particle color |
 | `RED_TRAIL_COLOR` | `"#ff9900"` | Red special-particle trail color |
 | `TRAIL_FADE` | `True` | Intended trail-fade setting; current renderer always fades trails |
-| `GLOW_ENABLED` | `False` | Enables/disables special-particle glow rendering |
+| `GLOW_ENABLED` | `True` | Enables/disables special-particle glow rendering |
 | `GLOW_RINGS` | `4` | Number of glow rings when glow is enabled |
 | `GLOW_SPREAD` | `0.6` | Glow ring radius multiplier |
 | `EASE` | `0.15` | Color-blending factor for special-particle color transitions |
+| `SPECIALS` | list of 2 dicts | Fractional-position configuration for special particles |
+| `CELL_SIZE` | `WHITE_RADIUS + RED_RADIUS` | Spatial-grid cell size used for collision candidate lookup |
 
-Current total particle count is 501:
+Current initial total particle count is 502:
 
 ```text
-1 white special + 499 blue regular + 1 red special = 501 particles
+2 special particles + 500 blue regular particles = 502 particles
 ```
+
+The slider and click-spawn interaction can change the live blue-particle count during runtime.
 
 ## Main Components
 
@@ -120,13 +129,27 @@ Owns the particle list and simulation update step.
 
 During setup, it creates:
 
-1. one white special particle at the window center
-2. 499 blue regular particles at random positions
-3. one red special particle at one-quarter window position
+1. special particles from the `SPECIALS` config list
+2. `BLUE_PARTICLE_COUNT` blue regular particles at random positions
+
+The simulation also provides:
+
+- `_build_grid()` for spatial-grid collision candidates
+- `set_blue_count(target)` for slider-controlled blue-particle count
+- `spawn(x, y)` for click-created blue particles
+- `reset()` for reinitializing all particles
 
 ### `frontend.gui.app.App`
 
-Builds the CustomTkinter window, renders particles using `tk.Canvas`, draws faded trails, optionally draws glow rings, runs the animation loop with `after()`, and provides the Reset button.
+Builds the CustomTkinter window, renders particles using `tk.Canvas`, draws faded trails, draws glow rings, runs the animation loop with `after()`, and provides interactive controls.
+
+Controls:
+
+- `Reset` button: reinitializes the simulation
+- Spacebar: toggles pause/resume
+- Mouse click on canvas: spawns one blue particle
+- Slider: changes the target number of blue particles from 0 to 2000
+- Top-right overlay: displays the current blue-particle count
 
 ## Physics Model
 
@@ -138,27 +161,32 @@ Builds the CustomTkinter window, renders particles using `tk.Canvas`, draws fade
 
 Mass is proportional to `radius²`, making the special particle behave heavier than blue particles.
 
-Collision detection is O(n²) — intentional simplicity, acceptable at the current scale.
+Collision candidate search now uses a uniform spatial grid:
+
+1. Move all particles.
+2. Assign each particle to a grid cell based on `CELL_SIZE`.
+3. For each cell, compare particles against candidates from the same cell and the 8 neighboring cells.
+4. Use a `checked` set to prevent resolving the same pair twice.
+
+This keeps the collision logic simple while avoiding full all-pairs checks in typical cases.
 
 ## Rendering Notes
 
 The renderer currently draws special-particle trails segment-by-segment. Older trail segments are blended closer to the background color, while newer segments are brighter and slightly thicker.
 
-Glow rendering is implemented but disabled by default:
+Glow rendering is enabled by default:
 
 ```python
-GLOW_ENABLED = False
+GLOW_ENABLED = True
 ```
 
-Set it to `True` in `backend/config.py` to enable pulsing glow rings around special particles.
+Set it to `False` in `backend/config.py` to disable pulsing glow rings around special particles.
 
 ## Possible Improvements
 
-- Spatial partitioning (uniform grid, quadtree) for O(n²) bottleneck
-- Pause/resume keyboard shortcut
+- Tune or validate `CELL_SIZE` for larger particle-radius combinations
 - FPS and particle count display
 - Deterministic seeding for reproducible runs
-- Adjustable particle count via UI slider
 - Wire `TRAIL_FADE` into the renderer so faded trails can be toggled
 - Use `Particle.rx` and `Particle.ry` if eased rendering is desired
-- Clarify whether `BLUE_PARTICLE_COUNT` should include or exclude the white special particle
+- Avoid drawing the blue-count overlay once per particle; draw it once after the particle loop
