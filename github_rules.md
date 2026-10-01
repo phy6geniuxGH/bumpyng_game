@@ -27,6 +27,8 @@ feature/fsdc-XXXX -> qa -> develop -> main (prod)
 - `qa -> develop` and `develop -> main` always require explicit owner approval.
 - Never push directly to `main`, `develop`, or `qa`. Changes enter only through PRs.
 - Never force-push or rewrite history on `main`, `develop`, or `qa`.
+- PRs into `main` must come from `develop` only. PRs into `develop` must come from `qa` only. Feature branches target `qa` only.
+- Recommended: enforce with GitHub branch protection (Settings > Branches): require a PR before merging on `main`, `develop`, and `qa`.
 
 ## Pull requests
 
